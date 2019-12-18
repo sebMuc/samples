@@ -34,5 +34,4 @@ pipeline {
         }
     }
 }
-view raw
-Jenkinsfile hosted with ❤ by GitHub
+
