@@ -1,65 +1,35 @@
 pipeline {
+    agent any
     stages {
-        stage('Clean project') {
+        stage ('Checkout') {
             steps {
-                sh 'flutter clean'
+                checkout scm
             }
         }
-
-        stage('Update dependencies') {
+        stage ('Download lcov converter') {
             steps {
-                sh 'flutter packages get'
+                sh "curl -O https://raw.githubusercontent.com/eriwen/lcov-to-cobertura-xml/master/lcov_cobertura/lcov_cobertura.py"
             }
         }
-      
-        stage('Run tests on Android') {
+        stage ('Flutter Doctor') {
             steps {
-                lock(resource: 'emulator') {
-                    sh '''
-                    echo "Creating and booting emulator..."
-                    make create_emulator
-                    make boot_emulator
-                    make wait_for_emulator_ready
-                    
-                    flutter drive --target=test_driver/login.dart
-                    '''
-                }
-            }
-            post {
-                  always {
-                      sh '''
-                        echo "Shutting down and deleting emulator..."
-                        make teardown_emulator
-                        make delete_emulator
-                      ''' 
-                  }
+                sh "flutter doctor"
             }
         }
-
-        stage('Run tests on iOS') {
+        stage('Test') {
             steps {
-                script {
-                    lock(resource: 'iOS simulator flutter') {
-                        sh '''
-                        echo "Booting simulator..."
-                        make boot_ios_simulator
-                        
-                        flutter drive --target=test_driver/login.dart
-                        '''
-                    }
-                }
+                sh "flutter test --coverage"
             }
             post {
                 always {
-                    sh "make teardown_simulator"
+                    sh "python3 lcov_cobertura.py coverage/lcov.info --output coverage/coverage.xml"
+                    step([$class: 'CoberturaPublisher', coberturaReportFile: 'coverage/coverage.xml'])
                 }
             }
         }
-    }
-    post {
-        success {
-            script {
-                //archive artifacts
+        stage('Run Analyzer') {
+            steps {
+                sh "dartanalyzer --options analysis_options.yaml ."
             }
         }
     }
